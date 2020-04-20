@@ -16,6 +16,7 @@ This package adds functionalities to the Eloquent model and Query builder for Mo
     - [Lumen](#lumen)
     - [Non-Laravel projects](#non-laravel-projects)
   - [Testing](#testing)
+  - [Database Testing](#database-testing)
   - [Configuration](#configuration)
   - [Eloquent](#eloquent)
     - [Extending the base model](#extending-the-base-model)
@@ -62,7 +63,7 @@ Make sure you have the MongoDB PHP driver installed. You can find installation i
  5.6.x    | 3.4.x
  5.7.x    | 3.4.x
  5.8.x    | 3.5.x
- 6.0.x    | 3.6.x
+ 6.x      | 3.6.x
 
 Install the package via Composer:
 
@@ -112,6 +113,25 @@ To run the test for this package, run:
 ```
 docker-compose up
 ```
+
+Database Testing
+-------
+
+To reset the database after each test, add:
+
+```php
+use Illuminate\Foundation\Testing\DatabaseMigrations;
+```
+
+Also inside each test classes, add:
+
+```php
+use DatabaseMigrations;
+```
+
+Keep in mind that these traits are not yet supported:
+- `use Database Transactions;`
+- `use RefreshDatabase;`
 
 Configuration
 -------------
@@ -460,7 +480,7 @@ Selects documents where values match a specified regular expression.
 ```php
 use MongoDB\BSON\Regex;
 
-User::where('name', 'regex', new Regex("/.*doe/i"))->get();
+User::where('name', 'regex', new Regex('.*doe', 'i'))->get();
 ```
 
 **NOTE:** you can also use the Laravel regexp operations. These are a bit more flexible and will automatically convert your regular expression string to a `MongoDB\BSON\Regex` object.
@@ -731,7 +751,7 @@ The belongsToMany relation will not use a pivot "table" but will push id's to a 
 If you want to define custom keys for your relation, set it to `null`:
 
 ```php
-use Jenssegers\Mongodb\Eloquent\Mode;
+use Jenssegers\Mongodb\Eloquent\Model;
 
 class User extends Model
 {
@@ -1114,3 +1134,7 @@ Embedded relations now return an `Illuminate\Database\Eloquent\Collection` rathe
 ```php
 $books = $user->books()->sortBy('title')->get();
 ```
+
+## Security contact information
+
+To report a security vulnerability, follow [these steps](https://tidelift.com/security).

@@ -294,7 +294,7 @@ class Builder extends BaseBuilder
                     }
                 }
             }
-            
+
             // The _id field is mandatory when using grouping.
             if ($group && empty($group['_id'])) {
                 $group['_id'] = null;
@@ -384,13 +384,12 @@ class Builder extends BaseBuilder
             if ($this->limit) {
                 $options['limit'] = $this->limit;
             }
+            if ($this->hint) {
+                $options['hint'] = $this->hint;
+            }
             if ($columns) {
                 $options['projection'] = $columns;
             }
-            if($this->hint) {
-                $options['hint'] = $this->hint;
-            }
-            // if ($this->hint)    $cursor->hint($this->hint);
 
             // Fix for legacy support, converts the results to arrays instead of objects.
             $options['typeMap'] = ['root' => 'array', 'document' => 'array'];
@@ -701,7 +700,11 @@ class Builder extends BaseBuilder
      */
     public function truncate()
     {
-        $result = $this->collection->drop();
+        $options = [
+            'typeMap' => ['root' => 'object', 'document' => 'object'],
+        ];
+
+        $result = $this->collection->drop($options);
 
         return (1 == (int) $result->ok);
     }
@@ -927,18 +930,18 @@ class Builder extends BaseBuilder
                 if (is_array($where['value'])) {
                     array_walk_recursive($where['value'], function (&$item, $key) {
                         if ($item instanceof DateTime) {
-                            $item = new UTCDateTime($item->getTimestamp() * 1000);
+                            $item = new UTCDateTime($item->format('Uv'));
                         }
                     });
                 } else {
                     if ($where['value'] instanceof DateTime) {
-                        $where['value'] = new UTCDateTime($where['value']->getTimestamp() * 1000);
+                        $where['value'] = new UTCDateTime($where['value']->format('Uv'));
                     }
                 }
             } elseif (isset($where['values'])) {
                 array_walk_recursive($where['values'], function (&$item, $key) {
                     if ($item instanceof DateTime) {
-                        $item = new UTCDateTime($item->getTimestamp() * 1000);
+                        $item = new UTCDateTime($item->format('Uv'));
                     }
                 });
             }
@@ -990,6 +993,7 @@ class Builder extends BaseBuilder
     protected function compileWhereBasic(array $where)
     {
         extract($where);
+        $is_numeric = false;
 
         // Replace like or not like with a Regex instance.
         if (in_array($operator, ['like', 'not like'])) {
@@ -1001,15 +1005,21 @@ class Builder extends BaseBuilder
 
             // Convert to regular expression.
             $regex = preg_replace('#(^|[^\\\])%#', '$1.*', preg_quote($value));
+            $plain_value = $value;
 
             // Convert like to regular expression.
             if (!Str::startsWith($value, '%')) {
                 $regex = '^' . $regex;
+            } else {
+                $plain_value = Str::replaceFirst('%', null, $plain_value);
             }
             if (!Str::endsWith($value, '%')) {
                 $regex .= '$';
+            } else {
+                $plain_value = Str::replaceLast('%', null, $plain_value);
             }
 
+            $is_numeric = is_numeric($plain_value);
             $value = new Regex($regex, 'i');
         } // Manipulate regexp operations.
         elseif (in_array($operator, ['regexp', 'not regexp', 'regex', 'not regex'])) {
@@ -1029,7 +1039,11 @@ class Builder extends BaseBuilder
         }
 
         if (!isset($operator) || $operator == '=') {
-            $query = [$column => $value];
+            if ($is_numeric) {
+                $query = ['$where' => '/^'.$value->getPattern().'/.test(this.'.$column.')'];
+            } else {
+                $query = [$column => $value];
+            }
         } elseif (array_key_exists($operator, $this->conversion)) {
             $query = [$column => [$this->conversion[$operator] => $value]];
         } else {
